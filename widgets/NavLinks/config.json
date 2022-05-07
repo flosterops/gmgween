@@ -1,0 +1,27 @@
+[
+  {
+    "id": "03f0122f-3f23-4340-88ca-d27c888f7d69",
+    "anchor": "home",
+    "text": "Home"
+  },
+  {
+    "id": "efa717b0-deb0-4525-b3e8-5d9e2cd0201d",
+    "anchor": "scare-and-share",
+    "text": "Scare & Share"
+  },
+  {
+    "id": "2c738753-859b-43a3-b8f5-fb2f2c3290e6",
+    "anchor": "sweet-treats",
+    "text": "Sweet treats"
+  },
+  {
+    "id": "026c8fb3-2988-4d9c-ae35-e1baf0c66cf8",
+    "anchor": "rules",
+    "text": "Rules"
+  },
+  {
+    "id": "62e48f25-2fc9-40fe-b9fe-1d9b02c01ed5",
+    "anchor": "twitch",
+    "text": "Twitch"
+  }
+]

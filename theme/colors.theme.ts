@@ -1,0 +1,18 @@
+export const colors = {
+  primary: '#000',
+  secondary: '#000',
+  disabled: '#000',
+  textPrimary: '#fff',
+  textSecondary: '#ffa146',
+  textDisabled: '#000',
+  white: '#FFF',
+  black: '#000',
+  dark: '#161221',
+  orange: '#ffb317',
+  gray: '#ccc',
+  main: '#302432',
+  footerBg: '#0d080e',
+  sectionTopBg: '#302432',
+  sectionBtmBg: '#131017',
+  blockShadow: 'rgba(48, 36, 50, 1)',
+};

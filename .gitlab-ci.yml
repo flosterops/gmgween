@@ -1,0 +1,165 @@
+variables:
+  IMAGE: gamigoween
+
+  REGISTRY: gcr.io/oneplatform-us-247012
+
+  CURL_TAG: 7.79.1
+  KANIKO_TAG: v1.6.0-debug
+  NODE_TAG: 14.18.1-bullseye-slim
+
+include:
+  - project: oneplatform/deployment
+    file: /landing-pages-gamigoween/gitlab-ci.yml
+
+stages:
+  - download
+  - build
+  - verify
+  - trigger
+
+download:apt:
+  stage: download
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  image: $CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:$NODE_TAG
+  dependencies: []
+  script:
+    - mkdir -p .apt/cache/archives/partial .apt/state/lists/partial
+    - apt-get -q -yy -o Dir::Cache=$CI_PROJECT_DIR/.apt/cache -o Dir::State=$CI_PROJECT_DIR/.apt/state
+        update
+    - apt-get -q -yy -o Dir::Cache=$CI_PROJECT_DIR/.apt/cache -o Dir::State=$CI_PROJECT_DIR/.apt/state
+        install --reinstall --download-only
+        tini
+  cache:
+    key: "download-apt-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .apt/
+    policy: pull-push
+
+download:yarn:
+  stage: download
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  variables:
+    YARN_CACHE_FOLDER: /tmp/yarn
+  image: $CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/node:$NODE_TAG
+  dependencies: []
+  script:
+    ## Versions
+    - node --version
+    - yarn --version
+    ## Yarn
+    - yarn check --integrity || yarn install --prefer-offline --pure-lockfile
+  cache:
+    key: "download-yarn-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .yarn-offline-mirror/
+      - node_modules/
+    policy: pull-push
+
+.kaniko:
+  image:
+    name: gcr.io/kaniko-project/executor:$KANIKO_TAG
+    entrypoint: [""]
+  variables:
+    BUILD_ARGS: DOCKER_REGISTRY TAG
+    DOCKER_REGISTRY: $CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX
+    TAG: $CI_COMMIT_BRANCH
+  dependencies:
+    - download:apt
+    - download:yarn
+  script:
+    ## Required variables
+    - test -n "$DOCKERFILE"
+    ## Versions
+    - executor version
+    ## Dependency Proxy and GCR credentials
+    - mkdir -p /kaniko/.docker
+    - |
+      cat << JSON > /kaniko/.docker/config.json
+      {
+        "auths": {
+          "$CI_DEPENDENCY_PROXY_SERVER": {
+            "username": "$CI_DEPENDENCY_PROXY_USER",
+            "password": "$CI_DEPENDENCY_PROXY_PASSWORD"
+          },
+          "$CI_REGISTRY": {
+            "username": "$CI_REGISTRY_USER",
+            "password": "$CI_REGISTRY_PASSWORD"
+          }
+        },
+        "credHelpers": {
+          "gcr.io": "gcr"
+        }
+      }
+      JSON
+    ## Image tags
+    - push_args=$(
+        if [ -n "$TAGS" ]; then
+          for tag in $TAGS; do eval echo "--destination $REGISTRY/$IMAGE:$tag"; done;
+        fi
+      )
+    ## No tags = no push
+    - no_push_args=$(
+        echo "--cache-repo $CI_REGISTRY_IMAGE";
+        echo "--no-push";
+      )
+    ## Build args from BUILD_ARGS variable
+    - build_args=$(for arg in $BUILD_ARGS; do eval echo "--build-arg $arg"; done)
+    ## Build specific target stage only from TARGET variable
+    - target_args=$(
+        if [ -n "$TARGET" ]; then
+          eval echo "--target $TARGET";
+        fi
+      )
+    ## Kaniko build + tag + push
+    - set -x; executor --dockerfile $DOCKERFILE --context $CI_PROJECT_DIR
+        ${push_args:-$no_push_args}
+        $build_args
+        $target_args
+        --single-snapshot
+        --skip-unused-stages
+        --snapshotMode=redo
+        --use-new-run
+  cache:
+    - key: "download-apt-$CI_COMMIT_REF_SLUG"
+      paths:
+        - .apt
+      policy: pull
+    - key: "download-yarn-$CI_COMMIT_REF_SLUG"
+      paths:
+        - .yarn-offline-mirror/
+      policy: pull
+
+build:
+  extends: .kaniko
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      variables:
+        TAGS: latest $CI_COMMIT_REF_SLUG $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_IID
+    - if: $CI_COMMIT_BRANCH
+      variables:
+        TAGS: $CI_COMMIT_REF_SLUG $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_IID
+  variables:
+    DOCKERFILE: $CI_PROJECT_DIR/docker/Dockerfile
+
+verify:
+  stage: verify
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  variables:
+    GIT_STRATEGY: none
+    PORT: 3000
+  services:
+    - name: $REGISTRY/$IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_IID
+      alias: service
+  image: $CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX/curlimages/curl:$CURL_TAG
+  dependencies: []
+  script:
+    # check the service: fail if port is stopped and do a health check
+    - for i in $(seq 1 30); do
+        timeout 1 nc -z service $PORT || exit 1;
+        curl -v --max-time 5 http://service:$PORT/ && break;
+        sleep 5;
+      done

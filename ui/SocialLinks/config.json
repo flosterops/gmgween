@@ -1,0 +1,26 @@
+[
+  {
+    "id": "3c234d7d-e4bb-4fa3-91a4-150f1526a141",
+    "type": "facebook",
+    "alt": "Facebook",
+    "href": "https://www.facebook.com/gamigo.group/"
+  },
+  {
+    "id": "42011ca2-0e34-4c58-8fed-5e31c63a36e3",
+    "type": "twitter",
+    "alt": "Twitter",
+    "href": "https://twitter.com/gamigo"
+  },
+  {
+    "id": "f7bea3ff-39a9-4ea7-afc9-8e729ffd7e49",
+    "type": "youtube",
+    "alt": "Youtube",
+    "href": "https://www.youtube.com/user/gamigogames"
+  },
+  {
+    "id": "258d425c-36b8-4ea4-a9c0-95e37ac23881",
+    "type": "twitch",
+    "alt": "Twitch",
+    "href": "https://www.twitch.tv/gamigogames"
+  }
+]
